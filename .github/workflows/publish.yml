@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+    tags:
+      - '*'
+  schedule:
+    - cron: '0 3 * * *'
 
 permissions:
   contents: read
@@ -14,9 +18,23 @@ jobs:
   publish:
     name: Publish Image to GHCR
     runs-on: ubuntu-latest
+    outputs:
+      image_version: ${{ steps.compute-image-version.outputs.image_version }}
 
     steps:
     - uses: actions/checkout@v4
+
+    - name: Compute image version
+      id: compute-image-version
+      run: |
+        if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+          IMAGE_VERSION="${GITHUB_REF_NAME}"
+        else
+          IMAGE_VERSION="nightly"
+        fi
+
+        echo "image_version=${IMAGE_VERSION}" >> "$GITHUB_OUTPUT"
+        echo "Publishing camelot-builder:${IMAGE_VERSION}"
 
     - name: Log in to GHCR
       uses: docker/login-action@v3
@@ -32,4 +50,29 @@ jobs:
         file: ./Dockerfile
         push: true
         tags: |
-          ghcr.io/${{ github.repository_owner }}/camelot-builder:latest
+          ghcr.io/${{ github.repository_owner }}/camelot-builder:${{ steps.compute-image-version.outputs.image_version }}
+
+  publish-sdk:
+    name: Publish SDK Image to GHCR
+    runs-on: ubuntu-latest
+    needs: publish
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Log in to GHCR
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and Push SDK Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile.sdk
+        target: final
+        push: true
+        tags: |
+          ghcr.io/${{ github.repository_owner }}/camelot-builder-sdk:${{ needs.publish.outputs.image_version }}
