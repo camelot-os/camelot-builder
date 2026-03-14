@@ -72,6 +72,7 @@ jobs:
       with:
         context: .
         file: ./Dockerfile.sdk
+        target: final
         push: true
         tags: |
           ghcr.io/${{ github.repository_owner }}/camelot-builder-sdk:${{ needs.publish.outputs.image_version }}

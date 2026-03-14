@@ -73,10 +73,19 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
+    - name: Validate camelot-builder-sdk image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile.sdk
+        target: validation
+        push: false
+
     - name: Build camelot-builder-sdk:latest
       uses: docker/build-push-action@v5
       with:
         context: .
         file: ./Dockerfile.sdk
+        target: final
         push: false
         tags: camelot-builder-sdk:latest, ghcr.io/${{ github.repository_owner }}/camelot-builder-sdk:latest

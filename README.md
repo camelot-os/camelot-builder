@@ -76,6 +76,25 @@ docker run -it --rm \
   ghcr.io/camelot-os/camelot-builder-sdk:nightly /bin/bash
 ```
 
+### Startup banner (non-CI mode)
+
+When the `camelot-builder-sdk` image starts outside CI, it prints a short banner showing:
+
+- selected SDK
+- `SDK_ROOT`
+- `PKG_CONFIG_PATH`
+- `DTS_INCLUDE_DIR`
+- `SDK_ARCH`
+- `SDK_INSTALL_BASE`
+- `SDK_RELEASE_TAG`
+
+In CI mode (`CI=true` or `GITHUB_ACTIONS=true`), this banner is automatically disabled.
+You can also disable it manually when needed:
+
+```bash
+docker run --rm -e CI=true ghcr.io/camelot-os/camelot-builder-sdk:nightly bash -lc 'echo no-banner'
+```
+
 ## camelot-builder image
 
 Camelot-builder image is made in order to build fully independent projects that do not rely on an
