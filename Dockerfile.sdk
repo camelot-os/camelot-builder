@@ -1,0 +1,51 @@
+# syntax=docker/dockerfile:1
+
+# ============================================================
+# Stage 1 — Rust builder (contains build dependencies)
+# ============================================================
+FROM ghcr.io/camelot-os/camelot-builder:latest AS camelot-builder-sdk
+
+ARG SDK_RELEASE_TAG=nightly
+ARG SDK_ARCH=armv8m-main
+ENV SDK_ARCH=${SDK_ARCH}
+ENV SDK_RELEASE_TAG=${SDK_RELEASE_TAG}
+ENV SDK_RELEASE_BASE_URL=https://github.com/camelot-os/camelot-sdk/releases/download/${SDK_RELEASE_TAG}
+ENV SDK_INSTALL_BASE=/opt/camelot-sdk
+ENV SDK_ARMV7EM_ARCHIVE=camelot-sdk-armv7em_${SDK_RELEASE_TAG}.tar.xz
+ENV SDK_ARMV8M_MAIN_ARCHIVE=camelot-sdk-armv8m-mainline_${SDK_RELEASE_TAG}.tar.xz
+
+RUN set -eux; \
+	mkdir -p "${SDK_INSTALL_BASE}" /tmp/camelot-sdk; \
+	curl -fsSL "${SDK_RELEASE_BASE_URL}/${SDK_ARMV7EM_ARCHIVE}" -o "/tmp/camelot-sdk/${SDK_ARMV7EM_ARCHIVE}"; \
+	curl -fsSL "${SDK_RELEASE_BASE_URL}/${SDK_ARMV8M_MAIN_ARCHIVE}" -o "/tmp/camelot-sdk/${SDK_ARMV8M_MAIN_ARCHIVE}"; \
+	tar -xJf "/tmp/camelot-sdk/${SDK_ARMV7EM_ARCHIVE}" -C "${SDK_INSTALL_BASE}"; \
+	tar -xJf "/tmp/camelot-sdk/${SDK_ARMV8M_MAIN_ARCHIVE}" -C "${SDK_INSTALL_BASE}"; \
+	mv "${SDK_INSTALL_BASE}/camelot-sdk-armv7em_${SDK_RELEASE_TAG}" "${SDK_INSTALL_BASE}/armv7em"; \
+	mv "${SDK_INSTALL_BASE}/camelot-sdk-armv8m-mainline_${SDK_RELEASE_TAG}" "${SDK_INSTALL_BASE}/armv8m.main"; \
+	rm -rf /tmp/camelot-sdk
+
+ENV SDK_ROOT=${SDK_INSTALL_BASE}/${SDK_ARCH}
+ENV PKG_CONFIG_PATH=${SDK_ROOT}/lib/pkgconfig
+ENV DTS_INCLUDE_DIR=${SDK_ROOT}/share/dts
+
+# this step verifies that the SDK was correctly extracted and is functional by
+# building a standalone library (merlin) as a smoke test. If this fails, the docker build will fail
+FROM camelot-builder-sdk AS validation
+
+WORKDIR /tmp
+
+# Clone sample-project at fixed revision for hermetic build
+ARG SAMPLE_PROJECT_REF=main
+RUN git clone https://github.com/camelot-os/merlin.git \
+    && cd merlin \
+    && git checkout ${SAMPLE_PROJECT_REF}
+
+WORKDIR /tmp/merlin
+
+# Validation build (FAILS docker build if error)
+RUN meson setup -Dconfig=configs/sample.config -Ddts=dts/sample-i2c.dts -Ddts-include-dirs=${DTS_INCLUDE_DIR} -Dwith_examples=true builddir
+RUN ninja -C builddir
+
+FROM camelot-builder-sdk AS final
+
+CMD ["bash"]
